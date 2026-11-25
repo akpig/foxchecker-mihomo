@@ -1,61 +1,63 @@
 # foxchecker-mihomo
 
-Foxchecker 使用 Mihomo 核心检查代理分享链接和订阅中的节点。报告包含 HTTPS 连通性、节点入口 IP、实测出口 IP、GeoIP 国家或地区，以及独立的 UDP4 和 UDP6 结果。脚本使用预构建镜像，安装并启动 Docker 后即可运行。[Docker Hub 镜像](https://hub.docker.com/r/akpig/foxchecker-mihomo)
+**English** · [简体中文](zh-cn/README.md) · [繁體中文](zh-hant/README.md) · [日本語](ja/README.md) · [Русский](ru-ru/README.md) · [Türkçe](tr-tr/README.md) · [Tiếng Việt](vi-vn/README.md) · [العربية](ar/README.md) · [فارسی](fa-ir/README.md) · [اردو](ur-pk/README.md)
 
-## 快速开始
+Foxchecker uses the Mihomo core to check proxy nodes from share links and subscriptions. Reports include HTTPS connectivity, ingress IP, observed egress IP, GeoIP country or region, and separate UDP4 and UDP6 results. The script uses a prebuilt image and requires a running Docker engine. [Docker Hub image](https://hub.docker.com/r/akpig/foxchecker-mihomo)
 
-需要 Bash、可访问的 Docker Linux 容器引擎，以及可写的报告目录。镜像平台为 `linux/amd64`，ARM 主机需要 Docker 支持运行 amd64 容器。Docker 引擎需要能访问宿主机上的报告目录和本地订阅文件。
+## Quick start
 
-### 一行运行
+You need Bash, access to a Docker engine running Linux containers, and a writable report directory. The image targets `linux/amd64`. Docker on ARM must support running amd64 containers. The engine must be able to access the host's report directory and local subscription file.
 
-将下面的占位符替换为 `mihomo-checker` 的公开 HTTPS 原始文件地址。在希望保存报告的目录运行，`bash -s --` 后的参数会传给脚本。
+### Run directly from GitHub
 
-```bash
-curl -fsSL '<脚本的公开 HTTPS 地址>' | bash -s -- 'vmess://…'
-curl -fsSL '<脚本的公开 HTTPS 地址>' | bash -s -- -s 'https://example.com/subscription'
-```
-
-### 从本地运行
-
-从本仓库目录运行下列命令，并替换示例输入。若要将报告写入其他目录，先切换到该目录，再用脚本的绝对路径运行。
-
-#### 检查一条分享链接
+Run these commands in the directory where you want to save the report. They download `mihomo-checker.sh` from the GitHub repository's default branch. Arguments after `bash -s --` are passed to the script.
 
 ```bash
-./mihomo-checker 'vmess://…'
+curl -fsSL 'https://raw.githubusercontent.com/akpig/foxchecker-mihomo/main/mihomo-checker.sh' | bash -s -- 'vmess://…'
+curl -fsSL 'https://raw.githubusercontent.com/akpig/foxchecker-mihomo/main/mihomo-checker.sh' | bash -s -- -s 'https://sub.foxdetector.com/en/top500/clash.yaml'
 ```
 
-支持 `vmess://`、`vless://`、`trojan://`、`ss://`、`hysteria2://`（含 `hy2://`）、`tuic://` 和 `anytls://`。可用的传输方式取决于 Mihomo 对节点配置的支持。
+### Run a local copy
 
-#### 检查订阅
+Run these commands from the repository directory and replace the example inputs as needed. To save reports elsewhere, change to that directory and invoke the script by its absolute path.
+
+#### Check a single share link
 
 ```bash
-./mihomo-checker -s 'https://example.com/subscription'
-./mihomo-checker -s './clash.yaml' --format clash -c 8 --timeout 15s
+./mihomo-checker.sh 'vmess://…'
 ```
 
-`-s` 接受公网 HTTPS 地址或本地文件路径。相对路径以运行命令时所在的目录为基准。订阅格式默认自动识别，支持含内联节点的 Clash YAML、V2Ray 明文或 Base64 链接列表，以及 sing-box JSON。
+Supported link schemes are `vmess://`, `vless://`, `trojan://`, `ss://`, `hysteria2://` (`hy2://`), `tuic://`, and `anytls://`. Available transports depend on Mihomo's support for the node configuration.
 
-| 参数 | 用途 |
+#### Check a subscription
+
+```bash
+./mihomo-checker.sh -s 'https://sub.foxdetector.com/en/top500/clash.yaml'
+./mihomo-checker.sh -s './clash.yaml' --format clash -c 8 --timeout 15s
+```
+
+The `-s` option accepts a public HTTPS URL or a local file. Relative paths are resolved from your current directory. The format is detected automatically and can be Clash YAML with inline nodes, plain-text or Base64 V2Ray link lists, or sing-box JSON.
+
+| Option | Purpose |
 | --- | --- |
-| `-s`、`--subscription` | 指定订阅地址或本地文件 |
-| `-c`、`--concurrent` | 订阅检查的最大并发数，默认 `16` |
-| `--format` | 订阅格式，默认 `auto`，可指定 `clash`、`v2ray` 或 `sing-box` |
-| `--timeout` | 每个节点的检查时限，默认 `10s`。单链接和订阅均可使用 |
-| `-h`、`--help` | 显示帮助 |
+| `-s`, `--subscription` | Specify a subscription URL or local file |
+| `-c`, `--concurrent` | Maximum concurrent subscription checks. Default is `16`. |
+| `--format` | Subscription format. Defaults to `auto`. Supported values include `clash`, `v2ray`, and `sing-box`. |
+| `--timeout` | Per-node timeout. Defaults to `10s` and applies to share links and subscriptions. |
+| `-h`, `--help` | Show help |
 
-## 查看结果
+## Read the results
 
-脚本在当前目录生成 `result.json`，每次生成报告时替换同名文件。单链接报告直接记录节点结果，订阅报告在 `results` 中按输入顺序列出节点。遇到失败时，可查看报告中的 `error.code` 和 `https.reason`。UDP 字段为 `null` 表示本次无法判定，可查看对应的 `udp4_reason` 或 `udp6_reason`。
+The script writes `result.json` in the current directory and replaces it whenever a new report is generated. A single-link report contains the node result directly. A subscription report lists node results in input order under `results`. For failed checks, see `error.code` and `https.reason`. A UDP value of `null` means the check was inconclusive. See `udp4_reason` or `udp6_reason` for details.
 
-脚本使用 `akpig/foxchecker-mihomo:latest`，本地缺少镜像时由 Docker 拉取。检查结束或收到中断信号时，脚本会清理本次容器。检查失败时会返回非零退出码，并在可生成报告时写入失败原因。如果 Docker 无法启动或命令用法有误，目录里可能仍是上一次的报告，请结合本次退出码和终端输出判断。
+The script uses `akpig/foxchecker-mihomo:latest`. Docker pulls it if it is missing locally. The script removes the container when the check ends or is interrupted. A failed check returns a nonzero exit status and records the failure reason when it can generate a report. If Docker cannot start or the command usage is invalid, an earlier `result.json` may still be present. Check the exit status and terminal output.
 
-## 本地构建镜像
+## Build the image locally
 
-将 Linux amd64 版 Foxchecker 可执行文件放到 `foxchecker/foxchecker`，然后在本仓库目录运行：
+Place the Linux amd64 Foxchecker executable at `foxchecker/foxchecker`, then run this command from the repository directory.
 
 ```bash
 ./build.sh
 ```
 
-构建脚本更新并校验 GeoIP 数据，生成本地镜像 `foxchecker-mihomo:latest`。检查脚本调用上文的 Docker Hub 镜像。GeoIP 数据署名见 [geoip/NOTICE](geoip/NOTICE)。
+The build script updates and verifies the GeoIP data and creates the local `foxchecker-mihomo:latest` image. The checker script uses the Docker Hub image linked above. See [geoip/NOTICE](geoip/NOTICE) for GeoIP attribution.

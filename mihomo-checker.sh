@@ -5,17 +5,17 @@ image=akpig/foxchecker-mihomo:latest
 
 usage() {
   cat <<'EOF'
-用法:
-  mihomo-checker [--timeout 时限] '分享链接'
-  mihomo-checker [选项] -s 'HTTPS 订阅地址或本地文件'
+Usage:
+  mihomo-checker.sh [--timeout DURATION] 'SHARE_LINK'
+  mihomo-checker.sh [OPTIONS] -s 'HTTPS_URL_OR_LOCAL_FILE'
 
-  -s, --subscription   检查订阅
-  -c, --concurrent     订阅检查并发数，默认 16
-      --format         订阅格式，默认 auto，可选 clash、v2ray、sing-box
-      --timeout        单节点时限，默认 10s
-  -h, --help           显示帮助
+  -s, --subscription   Check a subscription
+  -c, --concurrent     Maximum concurrent checks (default: 16)
+      --format         Subscription format: auto (default), clash, v2ray, or sing-box
+      --timeout        Per-node timeout (default: 10s)
+  -h, --help           Show help
 
-使用 Docker Linux/amd64 镜像。每次生成报告时替换当前目录的 result.json。
+Uses a Linux/amd64 Docker image. Each new report replaces result.json in the current directory.
 EOF
 }
 
@@ -39,7 +39,7 @@ while (( $# )); do
   case "$1" in
     -h|--help) usage; exit 0 ;;
     -s|--subscription|-c|--concurrent|--format|--timeout)
-      (( $# >= 2 )) || die 2 "$1 缺少参数。"
+      (( $# >= 2 )) || die 2 "Missing value for $1."
       option=$1
       value=$2
       shift 2
@@ -50,19 +50,19 @@ while (( $# )); do
       shift
       ;;
     -*)
-      die 2 '未知选项。请查看 --help。'
+      die 2 'Unknown option. See --help.'
       ;;
     *)
-      [[ -z "$share_link" && -n "$1" ]] || die 2 '请只提供一条非空分享链接。'
+      [[ -z "$share_link" && -n "$1" ]] || die 2 'Provide exactly one nonempty share link.'
       share_link=$1
       shift
       continue
       ;;
   esac
-  [[ -n "$value" ]] || die 2 "$option 缺少参数。"
+  [[ -n "$value" ]] || die 2 "Missing value for $option."
   case "$option" in
     -s|--subscription)
-      [[ -z "$subscription" ]] || die 2 '请只提供一个订阅。'
+      [[ -z "$subscription" ]] || die 2 'Provide only one subscription.'
       subscription=$value
       ;;
     *)
@@ -73,7 +73,7 @@ done
 
 if [[ -n "$share_link" && -n "$subscription" || -z "$share_link" && -z "$subscription" ]]; then
   usage >&2
-  die 2 '请提供一条分享链接或使用 --subscription 指定一个订阅。'
+  die 2 'Provide one share link or use --subscription to specify a subscription.'
 fi
 
 output_dir=$(pwd -P)
@@ -81,30 +81,30 @@ mounts=(--mount "$(bind_mount "$output_dir" /output)")
 case "$subscription" in
   '') checker_args+=(-- "$share_link") ;;
   https://*) checker_args+=(--subscription "$subscription") ;;
-  *://*) die 2 '远程订阅须使用 HTTPS。' ;;
+  *://*) die 2 'Remote subscriptions must use HTTPS.' ;;
   *)
     [[ "$subscription" = /* ]] || subscription="$output_dir/$subscription"
-    [[ -f "$subscription" && -r "$subscription" ]] || die 2 '本地订阅须为可读的普通文件。'
-    [[ ! "$subscription" -ef "$output_dir/result.json" ]] || die 2 '请选择与输出 result.json 不同的订阅文件。'
+    [[ -f "$subscription" && -r "$subscription" ]] || die 2 'The local subscription must be a readable regular file.'
+    [[ ! "$subscription" -ef "$output_dir/result.json" ]] || die 2 'Choose a subscription file other than the output file result.json.'
     subscription_dir=${subscription%/*}
-    subscription_dir=$(cd "${subscription_dir:-/}" && pwd -P) || die 2 '无法访问本地订阅目录。'
+    subscription_dir=$(cd "${subscription_dir:-/}" && pwd -P) || die 2 'Could not access the local subscription directory.'
     subscription="${subscription_dir%/}/${subscription##*/}"
     mounts+=(--mount "$(bind_mount "$subscription" /tmp/foxchecker-subscription),readonly")
     checker_args+=(--subscription /tmp/foxchecker-subscription)
     ;;
 esac
 
-command -v docker >/dev/null 2>&1 || die 3 '找不到 Docker CLI，请先安装 Docker。'
-engine_os=$(docker info --format '{{.OSType}}') || die 3 '无法连接 Docker，请确认 Docker 已启动且当前用户有访问权限。'
-[[ "$engine_os" = linux ]] || die 3 '此镜像需要 Docker 的 Linux 容器模式。'
-[[ -w "$output_dir" ]] || die 3 '当前目录不可写。'
+command -v docker >/dev/null 2>&1 || die 3 'Docker CLI is unavailable. Install Docker first.'
+engine_os=$(docker info --format '{{.OSType}}') || die 3 'Could not connect to Docker. Check that Docker is running and your account can access it.'
+[[ "$engine_os" = linux ]] || die 3 'This image requires Docker in Linux container mode.'
+[[ -w "$output_dir" ]] || die 3 'The current directory is not writable.'
 
 container_id=
 cleanup() {
   local status=$?
   trap '' HUP INT TERM
   if [[ -n "$container_id" ]] && ! docker rm -f "$container_id" >/dev/null; then
-    printf '无法清理本次检查容器 %s。\n' "$container_id" >&2
+    printf 'Could not remove check container %s.\n' "$container_id" >&2
     if (( status == 0 )); then
       status=3
     fi
@@ -118,7 +118,7 @@ trap 'exit 130' INT
 trap 'exit 143' TERM
 
 container_id=$(docker create --platform linux/amd64 --user "$(id -u):$(id -g)" \
-  "${mounts[@]}" "$image" "${checker_args[@]}") || die 3 '无法创建 Mihomo 检查容器。'
+  "${mounts[@]}" "$image" "${checker_args[@]}") || die 3 'Could not create the Mihomo check container.'
 
 # Waiting for an attached child lets the shell run its signal traps promptly.
 docker start --attach "$container_id" &
